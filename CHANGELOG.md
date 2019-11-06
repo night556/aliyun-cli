@@ -2,6 +2,8 @@
 
 ### Master
 
+- update: the prompt information of command `configure`
+
 ### 3.0.29
 
 - update: meta data

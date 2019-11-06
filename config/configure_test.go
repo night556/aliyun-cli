@@ -48,7 +48,7 @@ func TestNewConfigureCommand(t *testing.T) {
 		Short: i18n.T(
 			"configure credential and settings",
 			"配置身份认证和其他信息"),
-		Usage: "configure --mode <AuthenticateMode> --profile <profileName>",
+		Usage: "configure --mode {AK|StsToken|RamRoleArn|EcsRamRole|RsaKeyPair} --profile <profileName>",
 	}
 	configureGet := NewConfigureGetCommand()
 	configureSet := NewConfigureSetCommand()
