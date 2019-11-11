@@ -302,6 +302,7 @@ func (cp *Profile) GetClientByEcsAndRamRole(config *sdk.Config) (*sdk.Client, er
 	}
 	accessKeyID, _ := jmespath.Search("Credentials.AccessKeyId", v)
 	cp.AccessKeyId = accessKeyID.(string)
+	fmt.Println(cp.AccessKeyId)
 	accessKeySecret, _ := jmespath.Search("Credentials.AccessKeySecret", v)
 	cp.AccessKeyId = accessKeySecret.(string)
 	StsToken, _ := jmespath.Search("Credentials.SecurityToken", v)
