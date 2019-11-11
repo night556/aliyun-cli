@@ -175,21 +175,6 @@ func (cp *Profile) OverwriteWithFlags(ctx *cli.Context) {
 	if cp.RegionId == "" {
 		cp.RegionId = os.Getenv("REGION")
 	}
-
-	//TODO:remove code below
-	if cp.AccessKeyId != "" && cp.AccessKeySecret != "" {
-		cp.Mode = AK
-		if cp.StsToken != "" {
-			cp.Mode = StsToken
-		} else if cp.RamRoleArn != "" {
-			cp.Mode = RamRoleArn
-		}
-	} else if cp.PrivateKey != "" && cp.KeyPairName != "" {
-		cp.Mode = RsaKeyPair
-	} else if cp.RamRoleName != "" {
-		fmt.Println("hello")
-		cp.Mode = EcsRamRole
-	}
 }
 
 func (cp *Profile) ValidateAK() error {
