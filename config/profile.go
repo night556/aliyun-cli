@@ -296,7 +296,7 @@ func (cp *Profile) GetClientByEcsAndRamRole(config *sdk.Config) (*sdk.Client, er
 		return nil, err
 	}
 	var v interface{}
-	err = json.Unmarshal(rep.GetHttpContentBytes(), v)
+	err = json.Unmarshal(rep.GetHttpContentBytes(), &v)
 	if err != nil {
 		return nil, err
 	}
