@@ -72,6 +72,7 @@ func (a *BasicInvoker) Init(ctx *cli.Context, product *meta.Product) error {
 	var err error
 	a.product = product
 	a.client, err = a.profile.GetClient(ctx)
+	fmt.Println(a.profile.Mode)
 	if err != nil {
 		return fmt.Errorf("init client failed %s", err)
 	}
