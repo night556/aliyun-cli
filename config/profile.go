@@ -15,32 +15,29 @@ package config
 
 import (
 	"crypto/tls"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"regexp"
-	"strings"
 	"time"
 
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk"
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/auth/credentials"
-	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/auth/signers"
-	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/requests"
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/responses"
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/sts"
 	"github.com/aliyun/aliyun-cli/cli"
-	jmespath "github.com/jmespath/go-jmespath"
+	newcredentials "github.com/aliyun/credentials-go/credentials"
 )
 
 type AuthenticateMode string
 
 const (
-	AK         = AuthenticateMode("AK")
-	StsToken   = AuthenticateMode("StsToken")
-	RamRoleArn = AuthenticateMode("RamRoleArn")
-	EcsRamRole = AuthenticateMode("EcsRamRole")
-	RsaKeyPair = AuthenticateMode("RsaKeyPair")
+	AK            = AuthenticateMode("AK")
+	StsToken      = AuthenticateMode("StsToken")
+	RamRoleArn    = AuthenticateMode("RamRoleArn")
+	EcsRamRole    = AuthenticateMode("EcsRamRole")
+	EcsAndRamRole = AuthenticateMode("EcsAndRamRole")
+	RsaKeyPair    = AuthenticateMode("RsaKeyPair")
 )
 
 type Profile struct {
@@ -158,6 +155,7 @@ func (cp *Profile) OverwriteWithFlags(ctx *cli.Context) {
 	cp.Language = LanguageFlag(ctx.Flags()).GetStringOrDefault(cp.Language)
 	cp.RetryTimeout = RetryTimeoutFlag(ctx.Flags()).GetIntegerOrDefault(cp.RetryTimeout)
 	cp.RetryCount = RetryTimeoutFlag(ctx.Flags()).GetIntegerOrDefault(cp.RetryCount)
+	cp.ExpiredSeconds = ExpiredSecondsFlag(ctx.Flags()).GetIntegerOrDefault(cp.ExpiredSeconds)
 
 	if cp.AccessKeyId == "" {
 		cp.AccessKeyId = os.Getenv("ACCESS_KEY_ID")
@@ -230,28 +228,6 @@ func (cp *Profile) GetClient(ctx *cli.Context) (*sdk.Client, error) {
 	}
 }
 
-func (cp *Profile) GetSessionCredential() (*signers.SessionCredential, error) {
-	switch cp.Mode {
-	case AK:
-		return &signers.SessionCredential{
-			AccessKeyId:     cp.AccessKeyId,
-			AccessKeySecret: cp.AccessKeySecret,
-		}, nil
-	case StsToken:
-		return &signers.SessionCredential{
-			AccessKeyId:     cp.AccessKeyId,
-			AccessKeySecret: cp.AccessKeySecret,
-			StsToken:        cp.StsToken,
-		}, nil
-	case RamRoleArn:
-		return cp.GetSessionCredentialByRoleArn()
-	case EcsRamRole:
-		return cp.GetSessionCredentialByEcsRamRole()
-	default:
-		return nil, fmt.Errorf("unsupported mode '%s' to GetSessionCredential", cp.Mode)
-	}
-}
-
 func (cp *Profile) GetClientByAK(config *sdk.Config) (*sdk.Client, error) {
 	if cp.AccessKeyId == "" || cp.AccessKeySecret == "" {
 		return nil, fmt.Errorf("AccessKeyId/AccessKeySecret is empty! run `aliyun configure` first")
@@ -274,122 +250,15 @@ func (cp *Profile) GetClientBySts(config *sdk.Config) (*sdk.Client, error) {
 	return client, err
 }
 
-func (cp *Profile) GetSessionCredentialByRoleArn() (*signers.SessionCredential, error) {
-	client, err := sts.NewClientWithAccessKey(cp.RegionId, cp.AccessKeyId, cp.AccessKeySecret)
-	if err != nil {
-		return nil, fmt.Errorf("new sts client failed %s", err)
-	}
-	if client == nil {
-		return nil, fmt.Errorf("new sts client with nil")
-	}
-
-	request := sts.CreateAssumeRoleRequest()
-	request.RoleArn = cp.RamRoleArn
-	request.RoleSessionName = cp.RoleSessionName
-	request.DurationSeconds = requests.NewInteger(900)
-	request.Scheme = "https"
-
-	response, err := hookAssumeRole(client.AssumeRole)(request)
-	if err != nil {
-		return nil, fmt.Errorf("sts:AssumeRole() failed %s", err)
-	}
-
-	return &signers.SessionCredential{
-		AccessKeyId:     response.Credentials.AccessKeyId,
-		AccessKeySecret: response.Credentials.AccessKeySecret,
-		StsToken:        response.Credentials.SecurityToken,
-	}, nil
-}
-
 func (cp *Profile) GetClientByRoleArn(config *sdk.Config) (*sdk.Client, error) {
-	sc, err := cp.GetSessionCredentialByRoleArn()
-	if err != nil {
-		return nil, fmt.Errorf("get session credential failed %s", err)
-	}
-	cred := credentials.NewStsTokenCredential(sc.AccessKeyId, sc.AccessKeySecret, sc.StsToken)
+	cred := credentials.NewRamRoleArnCredential(cp.AccessKeyId, cp.AccessKeySecret, cp.RamRoleArn, cp.RoleSessionName, cp.ExpiredSeconds)
 	config.UserAgent = userAgent
 	client, err := sdk.NewClientWithOptions(cp.RegionId, config, cred)
 	return client, err
 }
 
-func (cp *Profile) GetSessionCredentialByEcsRamRole() (*signers.SessionCredential, error) {
-	httpClient := &http.Client{}
-
-	baseURL := "http://100.100.100.200/latest/meta-data/ram/security-credentials/"
-	ecsRamRoleName := cp.RamRoleName
-	if ecsRamRoleName == "" {
-		resp, err := hookHTTPGet(httpClient.Get)(baseURL)
-		if err != nil {
-			return nil, fmt.Errorf("Get default RamRole error: %s. Or Run `aliyun configure` to configure it.", err.Error())
-		}
-
-		response := responses.NewCommonResponse()
-		err = hookUnmarshal(responses.Unmarshal)(response, resp, "")
-
-		if response.GetHttpStatus() != http.StatusOK {
-			return nil, fmt.Errorf("Get meta-data status=%d please check RAM settings. Or Run `aliyun configure` to configure it.", response.GetHttpStatus())
-		}
-
-		ecsRamRoleName = response.GetHttpContentString()
-	}
-
-	requestUrl := baseURL + ecsRamRoleName
-	httpRequest, err := http.NewRequest(requests.GET, requestUrl, strings.NewReader(""))
-	if err != nil {
-		return nil, fmt.Errorf("new http request failed %s", err)
-	}
-
-	httpResponse, err := httpClient.Do(httpRequest)
-	if err != nil {
-		return nil, fmt.Errorf("failed get credentials from meta-data %s, please check RAM settings", err)
-	}
-
-	response := responses.NewCommonResponse()
-	err = responses.Unmarshal(response, httpResponse, "")
-
-	if response.GetHttpStatus() != http.StatusOK {
-		return nil, fmt.Errorf("get meta-data with role %s ,status=%d, please check RAM settings", ecsRamRoleName, response.GetHttpStatus())
-	}
-
-	var data interface{}
-	err = json.Unmarshal(response.GetHttpContentBytes(), &data)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal meta-data fail %s", err)
-	}
-
-	code, err := jmespath.Search("Code", data)
-	if err != nil {
-		return nil, fmt.Errorf("read code from meta-data failed %s", err)
-	}
-	if code.(string) != "Success" {
-		return nil, fmt.Errorf("unexcepted code = %s", code)
-	}
-	accessKeyId, err := jmespath.Search("AccessKeyId", data)
-	if err != nil || accessKeyId == "" {
-		return nil, fmt.Errorf("read AccessKeyId from meta-data failed %s", err)
-	}
-	accessKeySecret, err := jmespath.Search("AccessKeySecret", data)
-	if err != nil || accessKeySecret == "" {
-		return nil, fmt.Errorf("read AccessKeySecret from meta-data failed %s", err)
-	}
-	securityToken, err := jmespath.Search("SecurityToken", data)
-	if err != nil || securityToken == "" {
-		return nil, fmt.Errorf("read SecurityToken from meta-data failed %s", err)
-	}
-	return &signers.SessionCredential{
-		AccessKeyId:     accessKeyId.(string),
-		AccessKeySecret: accessKeySecret.(string),
-		StsToken:        securityToken.(string),
-	}, nil
-}
-
 func (cp *Profile) GetClientByEcsRamRole(config *sdk.Config) (*sdk.Client, error) {
-	sc, err := cp.GetSessionCredentialByEcsRamRole()
-	if err != nil {
-		return nil, fmt.Errorf("get session credential failed %s", err)
-	}
-
-	cred := credentials.NewStsTokenCredential(sc.AccessKeyId, sc.AccessKeySecret, sc.StsToken)
+	cred := credentials.NewEcsRamRoleCredential(cp.RamRoleName)
 	config.UserAgent = userAgent
 	client, err := sdk.NewClientWithOptions(cp.RegionId, config, cred)
 	return client, err
@@ -397,6 +266,23 @@ func (cp *Profile) GetClientByEcsRamRole(config *sdk.Config) (*sdk.Client, error
 
 func (cp *Profile) GetClientByPrivateKey(config *sdk.Config) (*sdk.Client, error) {
 	cred := credentials.NewRsaKeyPairCredential(cp.PrivateKey, cp.KeyPairName, cp.ExpiredSeconds)
+	config.UserAgent = userAgent
+	client, err := sdk.NewClientWithOptions(cp.RegionId, config, cred)
+	return client, err
+}
+
+func (cp *Profile) GetClientByEcsAndRamRole(config *sdk.Config) (*sdk.Client, error) {
+	c := &newcredentials.Configuration{
+		Type:     "ecs_ram_role",
+		RoleName: cp.RamRoleName,
+	}
+	ecsCredential, err := newcredentials.NewCredential(c)
+	if err != nil {
+		return nil, err
+	}
+	accessKeyID, err := ecsCredential.GetAccessKeyID()
+	accessSecret, err := ecsCredential.GetAccessSecret()
+	cred := credentials.NewRamRoleArnCredential(accessKeyID, accessSecret, cp.RamRoleArn, cp.RoleSessionName, cp.ExpiredSeconds)
 	config.UserAgent = userAgent
 	client, err := sdk.NewClientWithOptions(cp.RegionId, config, cred)
 	return client, err

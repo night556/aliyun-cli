@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"strconv"
 	"strings"
 
 	"github.com/aliyun/aliyun-cli/cli"
@@ -103,6 +104,9 @@ func doConfigure(ctx *cli.Context, profileName string, mode string) error {
 		case RsaKeyPair:
 			cp.Mode = RsaKeyPair
 			configureRsaKeyPair(w, &cp)
+		case EcsAndRamRole:
+			cp.Mode = EcsAndRamRole
+			configureEcsAndRamRole(w, &cp)
 		default:
 			return fmt.Errorf("unexcepted authenticate mode: %s", mode)
 		}
@@ -171,13 +175,30 @@ func configureRamRoleArn(w io.Writer, cp *Profile) error {
 	cp.RamRoleArn = ReadInput(cp.RamRoleArn)
 	cli.Printf(w, "Role Session Name [%s]: ", cp.RoleSessionName)
 	cp.RoleSessionName = ReadInput(cp.RoleSessionName)
-	cp.ExpiredSeconds = 900
+	if cp.ExpiredSeconds == 0 {
+		cp.ExpiredSeconds = 900
+	}
+	cp.ExpiredSeconds, _ = strconv.Atoi(ReadInput(strconv.Itoa(cp.ExpiredSeconds)))
 	return nil
 }
 
 func configureEcsRamRole(w io.Writer, cp *Profile) error {
 	cli.Printf(w, "Ecs Ram Role [%s]: ", cp.RamRoleName)
 	cp.RamRoleName = ReadInput(cp.RamRoleName)
+	return nil
+}
+
+func configureEcsAndRamRole(w io.Writer, cp *Profile) error {
+	cli.Printf(w, "Ecs Ram Role [%s]: ", cp.RamRoleName)
+	cp.RamRoleName = ReadInput(cp.RamRoleName)
+	cli.Printf(w, "Ram Role Arn [%s]: ", cp.RamRoleArn)
+	cp.RamRoleArn = ReadInput(cp.RamRoleArn)
+	cli.Printf(w, "Role Session Name [%s]: ", cp.RoleSessionName)
+	cp.RoleSessionName = ReadInput(cp.RoleSessionName)
+	if cp.ExpiredSeconds == 0 {
+		cp.ExpiredSeconds = 900
+	}
+	cp.ExpiredSeconds, _ = strconv.Atoi(ReadInput(strconv.Itoa(cp.ExpiredSeconds)))
 	return nil
 }
 

@@ -100,15 +100,15 @@ func ParseAndRunCommandFromCli(ctx *cli.Context, args []string) error {
 		return fmt.Errorf("config failed: %s", err.Error())
 	}
 
-	sc, err := profile.GetSessionCredential()
-	if err != nil {
-		return fmt.Errorf("can't get credential %s", err)
-	}
+	// sc, err := profile.GetSessionCredential()
+	// if err != nil {
+	// 	return fmt.Errorf("can't get credential %s", err)
+	// }
 
 	configs := make(map[string]string, 0)
-	configs["access-key-id"] = sc.AccessKeyId
-	configs["access-key-secret"] = sc.AccessKeySecret
-	configs["sts-token"] = sc.StsToken
+	configs["access-key-id"] = profile.AccessKeyId
+	configs["access-key-secret"] = profile.AccessKeySecret
+	configs["sts-token"] = profile.StsToken
 
 	if ep, ok := ctx.Flags().GetValue("endpoint"); !ok {
 		configs["endpoint"] = "oss-" + profile.RegionId + ".aliyuncs.com"
