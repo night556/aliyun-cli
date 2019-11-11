@@ -301,13 +301,13 @@ func (cp *Profile) GetClientByEcsAndRamRole(config *sdk.Config) (*sdk.Client, er
 		return nil, err
 	}
 	accessKeyID, _ := jmespath.Search("Credentials.AccessKeyId", v)
-	cp.AccessKeyId = accessKeyID.(string)
-	fmt.Println(cp.AccessKeyId)
 	accessKeySecret, _ := jmespath.Search("Credentials.AccessKeySecret", v)
-	cp.AccessKeyId = accessKeySecret.(string)
 	StsToken, _ := jmespath.Search("Credentials.SecurityToken", v)
-	cp.StsToken = StsToken.(string)
-	return cp.GetClientBySts(config)
+	fmt.Println(accessKeyID.(string))
+	fmt.Println(accessKeySecret.(string))
+	fmt.Println(StsToken.(string))
+	cred := credentials.NewStsTokenCredential(accessKeyID.(string), accessKeySecret.(string), StsToken.(string))
+	return sdk.NewClientWithOptions(cp.RegionId, config, cred)
 }
 
 func IsRegion(region string) bool {
