@@ -279,6 +279,7 @@ func (cp *Profile) GetClientByEcsAndRamRole(config *sdk.Config) (*sdk.Client, er
 	client, err := cp.GetClientByEcsRamRole(config)
 	req := requests.NewCommonRequest()
 	rep := responses.NewCommonResponse()
+	req.Scheme = "HTTPS"
 	req.Product = "Sts"
 	req.RegionId = cp.RegionId
 	req.Version = "2015-04-01"
