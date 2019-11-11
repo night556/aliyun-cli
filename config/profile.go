@@ -122,10 +122,7 @@ func (cp *Profile) Validate() error {
 		if cp.RoleSessionName == "" {
 			return fmt.Errorf("invailed role_session_name")
 		}
-	case EcsRamRole:
-		if cp.RamRoleName == "" {
-			//return fmt.Errorf("invailed ram_role_name")
-		}
+	case EcsRamRole, EcsAndRamRole:
 	case RsaKeyPair:
 		if cp.PrivateKey == "" {
 			return fmt.Errorf("invailed private_key")
