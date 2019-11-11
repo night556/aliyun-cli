@@ -19,14 +19,15 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk"
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/auth/credentials"
+	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/requests"
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/responses"
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/sts"
 	"github.com/aliyun/aliyun-cli/cli"
-	newcredentials "github.com/aliyun/credentials-go/credentials"
 )
 
 type AuthenticateMode string
@@ -274,19 +275,24 @@ func (cp *Profile) GetClientByPrivateKey(config *sdk.Config) (*sdk.Client, error
 }
 
 func (cp *Profile) GetClientByEcsAndRamRole(config *sdk.Config) (*sdk.Client, error) {
-	c := &newcredentials.Configuration{
-		Type:     "ecs_ram_role",
-		RoleName: cp.RamRoleName,
-	}
-	ecsCredential, err := newcredentials.NewCredential(c)
+	config.UserAgent = userAgent
+	client, err := cp.GetClientByEcsRamRole(config)
+	req := requests.NewCommonRequest()
+	rep := responses.NewCommonResponse()
+	req.Product = "Sts"
+	req.RegionId = cp.RegionId
+	req.Version = "2015-04-01"
+	req.Domain = "sts.aliyuncs.com"
+	req.ApiName = "AssumeRole"
+	req.QueryParams["RoleArn"] = cp.RamRoleArn
+	req.QueryParams["RoleSessionName"] = cp.RoleSessionName
+	req.QueryParams["DurationSeconds"] = strconv.Itoa(cp.ExpiredSeconds)
+	req.TransToAcsRequest()
+	err = client.DoAction(req, rep)
 	if err != nil {
 		return nil, err
 	}
-	accessKeyID, err := ecsCredential.GetAccessKeyID()
-	accessSecret, err := ecsCredential.GetAccessSecret()
-	cred := credentials.NewRamRoleArnCredential(accessKeyID, accessSecret, cp.RamRoleArn, cp.RoleSessionName, cp.ExpiredSeconds)
-	config.UserAgent = userAgent
-	client, err := sdk.NewClientWithOptions(cp.RegionId, config, cred)
+	fmt.Println(rep.GetHttpContentString())
 	return client, err
 }
 
