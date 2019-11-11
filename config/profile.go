@@ -15,6 +15,7 @@ package config
 
 import (
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -28,6 +29,7 @@ import (
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/responses"
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/sts"
 	"github.com/aliyun/aliyun-cli/cli"
+	jmespath "github.com/jmespath/go-jmespath"
 )
 
 type AuthenticateMode string
@@ -293,8 +295,18 @@ func (cp *Profile) GetClientByEcsAndRamRole(config *sdk.Config) (*sdk.Client, er
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println(rep.GetHttpContentString())
-	return client, err
+	var v interface{}
+	err = json.Unmarshal(rep.GetHttpContentBytes(), v)
+	if err != nil {
+		return nil, err
+	}
+	accessKeyID, _ := jmespath.Search("Credentials.AccessKeyId", &v)
+	cp.AccessKeyId = accessKeyID.(string)
+	accessKeySecret, _ := jmespath.Search("Credentials.AccessKeySecret", &v)
+	cp.AccessKeyId = accessKeySecret.(string)
+	StsToken, _ := jmespath.Search("Credentials.SecurityToken", &v)
+	cp.StsToken = StsToken.(string)
+	return cp.GetClientBySts(config)
 }
 
 func IsRegion(region string) bool {
