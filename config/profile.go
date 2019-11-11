@@ -223,6 +223,8 @@ func (cp *Profile) GetClient(ctx *cli.Context) (*sdk.Client, error) {
 		return cp.GetClientByEcsRamRole(config)
 	case RsaKeyPair:
 		return cp.GetClientByPrivateKey(config)
+	case EcsAndRamRole:
+		return cp.GetClientByEcsAndRamRole(config)
 	default:
 		return nil, fmt.Errorf("unexcepted certificate mode: %s", cp.Mode)
 	}
