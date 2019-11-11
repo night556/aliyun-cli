@@ -178,6 +178,7 @@ func configureRamRoleArn(w io.Writer, cp *Profile) error {
 	if cp.ExpiredSeconds == 0 {
 		cp.ExpiredSeconds = 900
 	}
+	cli.Printf(w, "Expired Seconds [%d]: ", cp.RoleSessionName)
 	cp.ExpiredSeconds, _ = strconv.Atoi(ReadInput(strconv.Itoa(cp.ExpiredSeconds)))
 	return nil
 }
@@ -198,6 +199,7 @@ func configureEcsAndRamRole(w io.Writer, cp *Profile) error {
 	if cp.ExpiredSeconds == 0 {
 		cp.ExpiredSeconds = 900
 	}
+	cli.Printf(w, "Expired Seconds [%d]: ", cp.RoleSessionName)
 	cp.ExpiredSeconds, _ = strconv.Atoi(ReadInput(strconv.Itoa(cp.ExpiredSeconds)))
 	return nil
 }
