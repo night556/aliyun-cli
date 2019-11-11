@@ -187,6 +187,7 @@ func (cp *Profile) OverwriteWithFlags(ctx *cli.Context) {
 	} else if cp.PrivateKey != "" && cp.KeyPairName != "" {
 		cp.Mode = RsaKeyPair
 	} else if cp.RamRoleName != "" {
+		fmt.Println("hello")
 		cp.Mode = EcsRamRole
 	}
 }
